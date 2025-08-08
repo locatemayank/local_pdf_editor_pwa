@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Minimal PDF Reorder & Merge — Local</title>
   <link rel="manifest" href="manifest.json" />
-  <meta name="theme-color" content="#7dd3fc" />
+    <meta name="theme-color" content="#7dd3fc" />
 
   <style>
     :root{
@@ -34,7 +34,10 @@
 
     .pages-panel{background:var(--card);border-radius:var(--radius);padding:12px;min-height:320px;border:1px solid rgba(255,255,255,0.02)}
     .pages{display:flex;flex-direction:column;gap:10px;max-height:70vh;overflow:auto;padding-right:6px}
-    .page{display:flex;gap:12px;align-items:center;padding:8px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);border:1px solid rgba(255,255,255,0.02)}
+    .page{display:flex;gap:12px;align-items:flex-start;padding:8px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);border:1px solid rgba(255,255,255,0.02);justify-content: space-between}
+    .page .meta {
+      flex: 1 1 auto;           /* let it shrink/wrap */
+    }
     .thumb{width:76px;height:100px;border-radius:6px;flex:0 0 76px;background:#06121a;display:grid;place-items:center;overflow:hidden}
     .meta{flex:1;min-width:0}
     .meta .title{font-size:13px;font-weight:700}
@@ -43,6 +46,12 @@
     .icon-btn{background:transparent;border:none;color:var(--muted);padding:8px;border-radius:8px;cursor:pointer}
     .drag-handle{cursor:grab}
     .small{font-size:12px;padding:6px 8px}
+    .page .meta .title {
+      white-space: normal;      /* allow wrapping */
+      word-break: break-word;   /* break long filenames without spaces */
+      overflow-wrap: anywhere;  /* modern browsers */
+      max-width: 100%;          /* don’t exceed container width */
+    }
 
     .right{display:flex;flex-direction:column;gap:12px}
     .preview{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:12px;border-radius:12px;min-height:220px;border:1px solid rgba(255,255,255,0.02)}
