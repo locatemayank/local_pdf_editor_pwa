@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Minimal PDF Reorder & Merge — Local</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#7dd3fc" />
+
+  <style>
+    :root{
+      --bg:#0f1720;--card:#0b1220;--muted:#93a3b8;--accent:#7dd3fc;--glass: rgba(255,255,255,0.04);
+      --radius:14px; --gap:12px; font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,var(--bg),#071018);color:#e6eef8}
+    .app{max-width:1080px;margin:24px auto;padding:20px;}
+    header{display:flex;gap:16px;align-items:center;justify-content:space-between}
+    h1{font-size:18px;margin:0;font-weight:600}
+    p.lead{margin:0;color:var(--muted);font-size:13px}
+
+    .toolbar{display:flex;gap:10px;align-items:center}
+    .btn{background:var(--glass);border:1px solid rgba(255,255,255,0.04);padding:10px 14px;border-radius:10px;color:inherit;font-weight:600;cursor:pointer}
+    .btn.primary{background:linear-gradient(90deg,#052235,#0b3b4e);border:1px solid rgba(125,211,252,0.15)}
+    .btn.ghost{background:transparent}
+    .controls{display:flex;gap:8px;align-items:center}
+
+    .layout{display:grid;grid-template-columns:1fr 360px;gap:18px;margin-top:18px}
+    @media (max-width:900px){.layout{grid-template-columns:1fr;}}
+
+    .uploader{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:var(--radius);padding:18px;border:1px solid rgba(255,255,255,0.03)}
+    .drop{border:2px dashed rgba(255,255,255,0.03);padding:28px;border-radius:12px;text-align:center;color:var(--muted)}
+    .drop.dragover{border-color:var(--accent);box-shadow:0 6px 24px rgba(125,211,252,0.06)}
+    input[type=file]{display:none}
+
+    .pages-panel{background:var(--card);border-radius:var(--radius);padding:12px;min-height:320px;border:1px solid rgba(255,255,255,0.02)}
+    .pages{display:flex;flex-direction:column;gap:10px;max-height:70vh;overflow:auto;padding-right:6px}
+    .page{display:flex;gap:12px;align-items:center;padding:8px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);border:1px solid rgba(255,255,255,0.02)}
+    .thumb{width:76px;height:100px;border-radius:6px;flex:0 0 76px;background:#06121a;display:grid;place-items:center;overflow:hidden}
+    .meta{flex:1;min-width:0}
+    .meta .title{font-size:13px;font-weight:700}
+    .meta .subtitle{font-size:12px;color:var(--muted);margin-top:6px}
+    .actions{display:flex;gap:6px;align-items:center}
+    .icon-btn{background:transparent;border:none;color:var(--muted);padding:8px;border-radius:8px;cursor:pointer}
+    .drag-handle{cursor:grab}
+    .small{font-size:12px;padding:6px 8px}
+
+    .right{display:flex;flex-direction:column;gap:12px}
+    .preview{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:12px;border-radius:12px;min-height:220px;border:1px solid rgba(255,255,255,0.02)}
+    .muted{color:var(--muted);font-size:13px}
+
+    footer{margin-top:16px;display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:13px}
+
+    /* subtle scrollbar */
+    .pages::-webkit-scrollbar{width:8px}
+    .pages::-webkit-scrollbar-thumb{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.04));border-radius:999px}
+    @media (max-width: 600px) {
+      /* Stack header content: text on top, buttons below */
+      header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+
+      header > div:first-child {
+        order: 1; /* title + lead */
+        width: 100%;
+      }
+
+      header > .toolbar {
+        order: 2; /* toolbar buttons below */
+        width: 100%;
+      }
+
+      /* Toolbar buttons full width and wrap */
+      .toolbar {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .toolbar .controls {
+        width: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      /* .toolbar .btn {
+        flex: 1 1 48%;
+        min-width: 120px;
+        text-align: center;
+      } */
+      /* Group Undo, Clear, Save in one row with equal spacing */
+      #addBtn #undoBtn, #clearBtn, #exportBtn {
+        flex: 1 1 0;
+        min-width: 0;
+      }
+      /* Hide uploader panel (drag & drop) on mobile */
+      .uploader {
+        display: none !important;
+      }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>Minimal PDF Reorder & Merge</h1>
+        <p class="lead">Local • Secure • Mobile-friendly • Undo/clear • Drag, tap or reorder pages across PDFs</p>
+      </div>
+      <div class="toolbar">
+        <div class="controls">
+          <label class="btn" id="addBtn"><input id="fileInput" type="file" accept="application/pdf" multiple />Add PDFs</label>
+          <button class="btn ghost" id="undoBtn">Undo</button>
+          <button class="btn ghost" id="clearBtn">Clear</button>
+          <button class="btn primary" id="exportBtn">Save PDF</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section>
+        <div class="uploader">
+          <div id="dropZone" class="drop">Drag & drop PDF files here, or click "Add PDFs"<div style="margin-top:8px;color:var(--muted);font-size:12px">Supports multiple files — pages will be extracted for reordering.</div></div>
+        </div>
+
+        <div style="height:14px"></div>
+
+        <div class="pages-panel">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div class="muted">Pages (drag to reorder, swipe on mobile; or use the arrow buttons)</div>
+            <div class="muted small">Total: <span id="totalCount">0</span></div>
+          </div>
+
+          <div id="pages" class="pages" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <aside class="right">
+        <div class="preview">
+          <div class="muted">Selected page preview</div>
+          <div id="previewBox" style="margin-top:12px;display:grid;place-items:center;min-height:160px"></div>
+
+            <div id="preview-controls" style="margin-bottom: 0.5rem;">
+              <!-- <button id="zoom-out-btn">➖</button>
+              <span id="zoom-level" style="margin: 0 0.5rem;">100%</span>
+              <button id="zoom-in-btn">➕</button>
+            </div> -->
+
+        </div>
+
+        <div class="muted">Tips: On phones tap the arrow buttons to reorder. To keep this app local, download dependencies and serve the file locally.</div>
+      </aside>
+    </main>
+
+    <footer>
+      <div>Built for privacy — everything stays in your browser.</div>
+      <div>Scalable. Add features like duplicate-detect or blank-page tools later.</div>
+    </footer>
+  </div>
+
+  <!-- External lightweight libs via CDN. For an offline/local deployment, download these files and point script src to local files. -->
+  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+  <!-- PDF.js legacy/compat build exposing pdfjsLib -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <script>
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+  </script>
+
+  <script>
+  // Modern minimalist PDF editor (single-file app) — architecture is modular and extendable.
+  (function(){
+    const { PDFDocument } = PDFLib;
+    // Pdfjs global
+    //pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.js';
+
+    // State
+    const state = {
+      sources: [], // {id, name, bytes, pdfLibDoc, pdfJsDoc, pageCount}
+      pages: [], // flattened list of pages in order {id, sourceId, pageIndex (0-based), thumb, selected}
+      undoStack: []
+    };
+
+    // Utilities
+    const uid = (p='p')=> p + '_' + Math.random().toString(36).slice(2,9);
+
+    // UI refs
+    const fileInput = document.getElementById('fileInput');
+    const dropZone = document.getElementById('dropZone');
+    const pagesEl = document.getElementById('pages');
+    const previewBox = document.getElementById('previewBox');
+    const totalCount = document.getElementById('totalCount');
+    const undoBtn = document.getElementById('undoBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const exportBtn = document.getElementById('exportBtn');
+
+    // Drag state for HTML5 DnD
+    let dragSrcId = null;
+
+    // Handling file add
+    fileInput.addEventListener('change', async (e)=>{
+      await handleFiles(Array.from(e.target.files));
+      fileInput.value = '';
+    });
+
+    dropZone.addEventListener('dragenter', e=>{e.preventDefault(); dropZone.classList.add('dragover')});
+    dropZone.addEventListener('dragover', e=>{e.preventDefault()});
+    dropZone.addEventListener('dragleave', e=>{dropZone.classList.remove('dragover')});
+    dropZone.addEventListener('drop', async e=>{
+      e.preventDefault(); dropZone.classList.remove('dragover');
+      const items = Array.from(e.dataTransfer.files||[]).filter(f=>f.type==='application/pdf');
+      if(items.length) await handleFiles(items);
+    });
+
+    async function handleFiles(files){
+      // Save undo snapshot
+      pushUndo({type:'add-files', beforeCount: state.pages.length});
+      for(const f of files){
+        const bytes = new Uint8Array(await f.arrayBuffer());
+        const sId = uid('src');
+        const source = {id:sId, name:f.name, bytes, pdfLibDoc:null, pdfJsDoc:null, pageCount:0};
+        state.sources.push(source);
+        // load pdf-lib doc
+        try{
+          source.pdfLibDoc = await PDFDocument.load(bytes);
+        }catch(err){console.error('pdf-lib load error',err)}
+        // load pdfjs doc for rendering thumbs
+        try{
+          source.pdfJsDoc = await pdfjsLib.getDocument({data:bytes}).promise;
+          source.pageCount = source.pdfJsDoc.numPages;
+        }catch(err){console.error('pdfjs load error',err)}
+
+        // extract pages
+        for(let i=0;i<source.pageCount;i++){
+          const pId = uid('pg');
+          const pageEntry = {id:pId, sourceId:sId, pageIndex:i, thumb:null, selected:false};
+          state.pages.push(pageEntry);
+          generateThumbnail(source, i, pageEntry);
+        }
+
+      }
+        renderPages();
+    }
+
+    // Generate thumbnail using PDF.js
+    async function generateThumbnail(source, pageIndex, pageEntry){
+      try{
+        const page = await source.pdfJsDoc.getPage(pageIndex+1);
+        const vp = page.getViewport({scale:1});
+        // scale to fit thumb height ~ 100
+        const scale = Math.min(1, 100 / vp.height);
+        const viewport = page.getViewport({scale});
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(viewport.width);
+        canvas.height = Math.round(viewport.height);
+        const ctx = canvas.getContext('2d');
+        await page.render({canvasContext:ctx,viewport}).promise;
+        pageEntry.thumb = canvas.toDataURL('image/jpeg', 0.75);
+        // if UI present, update its img
+        const img = document.querySelector(`[data-id="${pageEntry.id}"] img`);
+        if(img) img.src = pageEntry.thumb;
+      }catch(err){console.error('thumb err',err)}
+      renderPages()
+    }
+
+    function renderPages(){
+      pagesEl.innerHTML = '';
+      state.pages.forEach((p, idx)=>{
+        const src = state.sources.find(s=>s.id===p.sourceId);
+        const el = document.createElement('div');
+        el.className='page';
+        el.draggable = true;
+        el.dataset.id = p.id;
+        el.innerHTML = `
+          <div class="thumb"><img src="${p.thumb||''}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'"></div>
+          <div class="meta">
+            <div class="title">${src?src.name:'(loading...)'}</div>
+            <div class="subtitle">Page ${p.pageIndex+1} — position ${idx+1}</div>
+          </div>
+          <div class="actions">
+            <button class="icon-btn drag-handle" title="Drag to reorder">≡</button>
+            <button class="icon-btn" data-action="up" title="Move up">▲</button>
+            <button class="icon-btn" data-action="down" title="Move down">▼</button>
+            <button class="icon-btn" data-action="delete" title="Delete page">✕</button>
+          </div>
+        `;
+        pagesEl.appendChild(el);
+
+        // event listeners
+        el.addEventListener('click', ()=>selectPage(p.id));
+        // drag events
+        el.addEventListener('dragstart',(e)=>{dragSrcId = p.id; el.style.opacity=0.5; e.dataTransfer.setData('text/plain', p.id)});
+        el.addEventListener('dragend',()=>{dragSrcId=null; el.style.opacity='';});
+        el.addEventListener('dragover',(e)=>{e.preventDefault();});
+        el.addEventListener('drop',(e)=>{e.preventDefault(); const destId = el.dataset.id; handleReorder(dragSrcId, destId)});
+
+        // action buttons
+        el.querySelectorAll('button[data-action]').forEach(btn=>{
+          btn.addEventListener('click', (ev)=>{
+            ev.stopPropagation(); const act = btn.dataset.action; if(act==='delete') deletePage(p.id); else if(act==='up') movePage(p.id, -1); else if(act==='down') movePage(p.id, +1);
+          });
+        });
+      });
+      totalCount.textContent = state.pages.length;
+    }
+
+    function selectPage(id){
+      state.pages.forEach(p=>p.selected = (p.id===id));
+      renderPages();
+      // show preview larger
+      const p = state.pages.find(x=>x.id===id);
+      if(!p) return previewBox.innerHTML='';
+      const src = state.sources.find(s=>s.id===p.sourceId);
+      if(!src || !src.pdfJsDoc) return;
+      (async ()=>{
+        previewBox.innerHTML='';
+        try{
+          const page = await src.pdfJsDoc.getPage(p.pageIndex+1);
+          const viewport = page.getViewport({scale:1});
+          //const scale = Math.min(1.6, 400/viewport.height);
+          // Calculate scale based on maxHeight and DPR
+          const scale = Math.min(3, 1200 / viewport.height);
+          const vp = page.getViewport({scale});
+          const canvas = document.createElement('canvas'); canvas.width=vp.width; canvas.height=vp.height;
+          canvas.style.maxWidth='100%'; canvas.style.borderRadius='10px';
+          const ctx = canvas.getContext('2d');
+          await page.render({canvasContext:ctx,viewport:vp}).promise;
+          previewBox.appendChild(canvas);
+        }catch(err){previewBox.innerHTML='<div class="muted">Preview error</div>'}
+      })();
+    }
+
+    // Reorder helpers
+    function indexOfPageId(id){return state.pages.findIndex(p=>p.id===id)}
+    function movePage(id, delta){
+      const idx = indexOfPageId(id); if(idx<0) return; const newIdx = Math.max(0, Math.min(state.pages.length-1, idx+delta)); if(newIdx===idx) return;
+      pushUndo({type:'reorder', beforeOrder: state.pages.map(x=>x.id)});
+      const [item] = state.pages.splice(idx,1); state.pages.splice(newIdx,0,item);
+      renderPages();
+    }
+    function handleReorder(srcId, destId){
+      if(!srcId || !destId || srcId===destId) return;
+      const from = indexOfPageId(srcId); const to = indexOfPageId(destId); if(from<0||to<0) return;
+      pushUndo({type:'reorder', beforeOrder: state.pages.map(x=>x.id)});
+      const [item] = state.pages.splice(from,1); state.pages.splice(to,0,item);
+      renderPages();
+    }
+
+    function deletePage(id){
+      const idx = indexOfPageId(id); if(idx<0) return;
+      pushUndo({type:'delete', deleted: state.pages[idx], index: idx});
+      state.pages.splice(idx,1);
+      renderPages();
+    }
+
+    // Undo/clear
+    function pushUndo(action){
+      state.undoStack.push(action);
+      // limit stack
+      if(state.undoStack.length>100) state.undoStack.shift();
+    }
+    undoBtn.addEventListener('click', ()=>{
+      const action = state.undoStack.pop(); if(!action) return; applyUndo(action);
+    });
+
+    function applyUndo(action){
+      if(action.type==='add-files'){
+        // naive: clear everything added after snapshot
+        // For simplicity, we'll clear everything and re-run from beforeCount=0 — more advanced snapshots can store deep copies.
+        // Here we remove last (currentLength - beforeCount) pages and possibly sources.
+        const toRemove = state.pages.length - action.beforeCount;
+        if(toRemove>0) state.pages.splice(action.beforeCount, toRemove);
+        // If there are orphaned sources, remove them
+        cleanupUnusedSources();
+        renderPages();
+      }else if(action.type==='reorder'){
+        // restore previous order
+        const map = {}; state.pages.forEach(p=>map[p.id]=p);
+        state.pages = action.beforeOrder.map(id=>map[id]).filter(Boolean);
+        renderPages();
+      }else if(action.type==='delete'){
+        state.pages.splice(action.index,0,action.deleted);
+        renderPages();
+      }
+    }
+
+    clearBtn.addEventListener('click', ()=>{
+      if(!confirm('Clear all loaded PDFs and edits?')) return;
+      pushUndo({type:'clear', snapshot:{sources: state.sources.slice(), pages: state.pages.slice()}});
+      state.sources = []; state.pages = []; state.undoStack = [];
+      renderPages(); previewBox.innerHTML=''; totalCount.textContent='0';
+    });
+
+    function cleanupUnusedSources(){
+      const used = new Set(state.pages.map(p=>p.sourceId));
+      state.sources = state.sources.filter(s=>used.has(s.id));
+    }
+
+    // Export merged PDF
+    exportBtn.addEventListener('click', async ()=>{
+      if(state.pages.length===0){alert('No pages to export');return}
+      exportBtn.disabled=true; exportBtn.textContent='Preparing...';
+      try{
+        const outPdf = await PDFDocument.create();
+        // prepare mapping of sourceId to loaded pdf-lib doc
+        const libMap = {};
+        for(const s of state.sources){ if(s.pdfLibDoc) libMap[s.id]=s.pdfLibDoc; }
+        for(const p of state.pages){
+          const srcDoc = libMap[p.sourceId];
+          if(!srcDoc){ console.warn('missing source for',p); continue }
+          // need to copy page into outPdf
+          const [copied] = await outPdf.copyPages(srcDoc, [p.pageIndex]);
+          outPdf.addPage(copied);
+        }
+        const bytes = await outPdf.save();
+        const blob = new Blob([bytes], {type:'application/pdf'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href=url; a.download='merged.pdf'; document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+      }catch(err){console.error(err); alert('Export failed: '+err.message)}
+      exportBtn.disabled=false; exportBtn.textContent='Save PDF';
+    });
+
+    // Initial empty render
+    renderPages();
+
+    // Expose for debugging/extension
+    window._pdfEditor = {
+      state, renderPages, selectPage, movePage, deletePage, exportMerged: ()=>exportBtn.click()
+    };
+
+    // Accessibility / mobile tweak: allow long-press to drag simulation (basic)
+    // For simplicity and robustness across platforms we include arrow buttons for reordering on mobile.
+
+  })();
+  </script>
+</body>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js')
+        .then(reg => console.log('Service Worker registered:', reg.scope))
+        .catch(err => console.error('Service Worker registration failed:', err));
+    });
+  }
+</script>
+
+</html>
