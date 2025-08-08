@@ -8,7 +8,8 @@ const FILES_TO_CACHE = [
   '/styles.css',
   '/app.js',
   '/icons/icon-192.png',
-  '/icons/icon-512.png'
+  '/icons/icon-512.png',
+  'icons/apple-icon-180.png'
 ];
 
 // Install - cache app shell files
